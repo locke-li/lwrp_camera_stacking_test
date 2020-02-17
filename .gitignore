@@ -1,0 +1,6 @@
+.vs/
+Library/
+obj/
+*.apk
+*.sln
+*.csproj
