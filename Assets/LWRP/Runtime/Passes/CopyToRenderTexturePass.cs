@@ -10,6 +10,7 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline {
         private RenderTargetHandle intermediate { get; set; }
         private RenderTextureDescriptor descriptor;
         private SampleCount sampleCount;
+        private bool hdrEnabled;
 
         private int UVTransformID;
 
@@ -25,12 +26,13 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline {
         /// </summary>
         /// <param name="source">Source Render Target</param>
         /// <param name="destination">Destination Render Target</param>
-        public void Setup(RenderTextureDescriptor baseDescriptor, SampleCount sampleCount, RenderTargetHandle source, RenderTargetHandle intermediate, RenderTargetHandle destination) {
+        public void Setup(RenderTextureDescriptor baseDescriptor, SampleCount sampleCount, bool hdrEnabled, RenderTargetHandle source, RenderTargetHandle intermediate, RenderTargetHandle destination) {
             this.source = source;
             this.destination = destination;
             this.intermediate = intermediate;
             descriptor = baseDescriptor;
             this.sampleCount = sampleCount;
+            this.hdrEnabled = hdrEnabled;
         }
 
         /// <inheritdoc/>
@@ -44,7 +46,7 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline {
             var opaqueColorRT = destination.Identifier();
 
             var inter = intermediate.Identifier();
-            if (SystemInfo.graphicsUVStartsAtTop) {
+            if (SystemInfo.graphicsUVStartsAtTop && false) {
                 var colorDescriptor = descriptor;
                 colorDescriptor.depthBufferBits = 0;
                 colorDescriptor.msaaSamples = (int)sampleCount;
@@ -63,7 +65,7 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline {
                 }
             }
             else {
-                if (sampleCount == SampleCount.One) {
+                if (sampleCount == SampleCount.One && !hdrEnabled) {
                     cmd.Blit(colorRT, opaqueColorRT);
 
                     if (Status.Valid) {
@@ -82,7 +84,7 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline {
                     cmd.Blit(inter, opaqueColorRT);
 
                     if (Status.Valid) {
-                        Status.CodePath = "MSAA";
+                        Status.CodePath = "Intermediate";
                         cmd.Blit(colorRT, Status.Blit0.texture);
                         cmd.Blit(inter, Status.Blit1.texture);
                         cmd.Blit(opaqueColorRT, Status.Blit2.texture);

@@ -4,3 +4,4 @@ obj/
 *.apk
 *.sln
 *.csproj
+Temp/

@@ -125,8 +125,9 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline
                 m_CreateLightweightRenderTexturesPass.Setup(baseDescriptor, colorHandle, depthHandle, sampleCount);
                 renderer.EnqueuePass(m_CreateLightweightRenderTexturesPass);
                 //FIX camera stacking with RT by liyingbo. Copy current screen content to the newly created RT.  
+                var hdrEnabled = renderingData.cameraData.isHdrEnabled;
                 if (clearFlag == ClearFlag.Depth) {
-                    m_CopyToRenderTexturePass.Setup(baseDescriptor, sampleCount, RenderTargetHandle.CameraTarget, ColorCopyIntermediateHandle, colorHandle);
+                    m_CopyToRenderTexturePass.Setup(baseDescriptor, sampleCount, hdrEnabled, RenderTargetHandle.CameraTarget, ColorCopyIntermediateHandle, colorHandle);
                     renderer.EnqueuePass(m_CopyToRenderTexturePass);
                 }
             }
