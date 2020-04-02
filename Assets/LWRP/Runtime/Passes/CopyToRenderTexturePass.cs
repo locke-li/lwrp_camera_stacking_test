@@ -46,7 +46,7 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline {
             var opaqueColorRT = destination.Identifier();
 
             var inter = intermediate.Identifier();
-            if (SystemInfo.graphicsUVStartsAtTop && false) {
+            if (SystemInfo.graphicsUVStartsAtTop) {
                 var colorDescriptor = descriptor;
                 colorDescriptor.depthBufferBits = 0;
                 colorDescriptor.msaaSamples = (int)sampleCount;
@@ -56,23 +56,10 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline {
                 cmd.Blit(colorRT, inter);
                 cmd.SetGlobalTexture("_MainTex", inter);
                 cmd.Blit(inter, opaqueColorRT, mat);
-
-                if (Status.Valid) {
-                    Status.CodePath = "Flip";
-                    cmd.Blit(colorRT, Status.Blit0.texture);
-                    cmd.Blit(inter, Status.Blit1.texture);
-                    cmd.Blit(opaqueColorRT, Status.Blit2.texture);
-                }
             }
             else {
                 if (sampleCount == SampleCount.One && !hdrEnabled) {
                     cmd.Blit(colorRT, opaqueColorRT);
-
-                    if (Status.Valid) {
-                        Status.CodePath = "Direct";
-                        cmd.Blit(colorRT, Status.Blit0.texture);
-                        cmd.Blit(opaqueColorRT, Status.Blit2.texture);
-                    }
                 }
                 else {
                     var colorDescriptor = descriptor;
@@ -82,13 +69,6 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline {
                     cmd.Blit(colorRT, inter);
                     cmd.SetGlobalTexture("_MainTex", inter);
                     cmd.Blit(inter, opaqueColorRT);
-
-                    if (Status.Valid) {
-                        Status.CodePath = "Intermediate";
-                        cmd.Blit(colorRT, Status.Blit0.texture);
-                        cmd.Blit(inter, Status.Blit1.texture);
-                        cmd.Blit(opaqueColorRT, Status.Blit2.texture);
-                    }
                 }
             }
             cmd.ReleaseTemporaryRT(intermediate.id);

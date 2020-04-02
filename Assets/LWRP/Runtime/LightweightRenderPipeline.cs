@@ -237,7 +237,7 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline
             {
                 reflectionProbeSupportFlags = SupportedRenderingFeatures.ReflectionProbeSupportFlags.None,
                 defaultMixedLightingMode = SupportedRenderingFeatures.LightmapMixedBakeMode.Subtractive,
-                supportedMixedLightingModes = SupportedRenderingFeatures.LightmapMixedBakeMode.Subtractive,
+                supportedMixedLightingModes = SupportedRenderingFeatures.LightmapMixedBakeMode.Subtractive | SupportedRenderingFeatures.LightmapMixedBakeMode.Shadowmask,
                 supportedLightmapBakeTypes = LightmapBakeType.Baked | LightmapBakeType.Mixed,
                 supportedLightmapsModes = LightmapsMode.CombinedDirectional | LightmapsMode.NonDirectional,
                 rendererSupportsLightProbeProxyVolumes = false,

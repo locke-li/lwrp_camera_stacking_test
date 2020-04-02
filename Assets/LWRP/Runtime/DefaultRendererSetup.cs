@@ -110,8 +110,7 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline
             shadowDescriptor.dimension = TextureDimension.Tex2D;
 
             bool requiresRenderToTexture = ScriptableRenderer.RequiresIntermediateColorTexture(ref renderingData.cameraData, baseDescriptor)
-                                          || m_BeforeRenderPasses.Count != 0;
-            //var requiresRenderToTexture = true;
+                                           || m_BeforeRenderPasses.Count != 0;
 
             RenderTargetHandle colorHandle = RenderTargetHandle.CameraTarget;
             RenderTargetHandle depthHandle = RenderTargetHandle.CameraTarget;

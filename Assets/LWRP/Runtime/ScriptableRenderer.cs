@@ -203,7 +203,7 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline
                     break;
 
                 VisibleLight light = visibleLights[i];
-                if (light.lightType == LightType.Directional)
+                if (lightData.mainLightIndex == i)
                 {
                     perObjectLightIndexMap[i] = -1;
                     ++directionalLightsCount;
@@ -339,7 +339,10 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline
 
         public static RendererConfiguration GetRendererConfiguration(int additionalLightsCount)
         {
-            RendererConfiguration configuration = RendererConfiguration.PerObjectReflectionProbes | RendererConfiguration.PerObjectLightmaps | RendererConfiguration.PerObjectLightProbe;
+            RendererConfiguration configuration = RendererConfiguration.PerObjectReflectionProbes 
+                | RendererConfiguration.PerObjectLightmaps 
+                | RendererConfiguration.PerObjectLightProbe
+                | RendererConfiguration.PerObjectShadowMask;
             if (additionalLightsCount > 0)
             {
                 if (useStructuredBufferForLights)

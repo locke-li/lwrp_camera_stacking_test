@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 75fc8bfc4cba5a64985fe91b5b00071e, type: 3}
   m_Name: LightweightRenderPipelineEditorResources
   m_EditorClassIdentifier: 
-  m_LitMaterial: {fileID: 2100000, guid: b574e16ac537fd643a87d8f5f096e656, type: 2}
-  m_ParticleLitMaterial: {fileID: 2100000, guid: 0b52a01a23916c64b8d778460581e4ca,
+  m_LitMaterial: {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  m_ParticleLitMaterial: {fileID: 2100000, guid: e823cd5b5d27c0f4b8256e7c12ee3e6d,
     type: 2}
-  m_TerrainLitMaterial: {fileID: 2100000, guid: 956958d31d182284cae5a631d46041bf,
+  m_TerrainLitMaterial: {fileID: 2100000, guid: 594ea882c5a793440b60ff72d896021e,
     type: 2}
   m_AutodeskInteractiveShader: {fileID: 4800000, guid: 0e9d5a909a1f7e84882a534d0d11e49f,
     type: 3}

@@ -24,6 +24,9 @@ struct InputData
     half    fogCoord;
     half3   vertexLighting;
     half3   bakedGI;
+#if defined(_MIXED_LIGHTING_SHADOWMASK) && defined(LIGHTMAP_ON)
+    half4 shadowMask;
+#endif
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -43,12 +46,14 @@ CBUFFER_END
 CBUFFER_START(_LightBuffer)
 float4 _MainLightPosition;
 half4 _MainLightColor;
+half4 _MainLightOcclusionProbe;
 
 half4 _AdditionalLightsCount;
 float4 _AdditionalLightsPosition[MAX_VISIBLE_LIGHTS];
 half4 _AdditionalLightsColor[MAX_VISIBLE_LIGHTS];
 half4 _AdditionalLightsAttenuation[MAX_VISIBLE_LIGHTS];
 half4 _AdditionalLightsSpotDir[MAX_VISIBLE_LIGHTS];
+half4 _AdditionalLightsOcclusionProbes[MAX_VISIBLE_LIGHTS];
 CBUFFER_END
 
 #if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA

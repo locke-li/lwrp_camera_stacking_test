@@ -18,12 +18,14 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline
         {
             public static int _MainLightPosition;
             public static int _MainLightColor;
+            public static int _MainLightOcclusionProbe;
 
             public static int _AdditionalLightsCount;
             public static int _AdditionalLightsPosition;
             public static int _AdditionalLightsColor;
             public static int _AdditionalLightsAttenuation;
             public static int _AdditionalLightsSpotDir;
+            public static int _AdditionalLightOcclusionProbeChannel;
 
             public static int _AdditionalLightsBuffer;
         }
@@ -31,15 +33,22 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline
         const string k_SetupLightConstants = "Setup Light Constants";
         MixedLightingSetup m_MixedLightingSetup;
 
-        Vector4 k_DefaultLightPosition = new Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+        // Holds light direction for directional lights or position for punctual lights.
+        // When w is set to 1.0, it means it's a punctual light.
+        Vector4 k_DefaultLightPosition = new Vector4(0.0f, 0.0f, 1.0f, 0.0f);
         Vector4 k_DefaultLightColor = Color.black;
-        Vector4 k_DefaultLightAttenuation = new Vector4(1.0f, 0.0f, 0.0f, 1.0f);
+
+        // Default light attenuation is setup in a particular way that it causes
+        // directional lights to return 1.0 for both distance and angle attenuation
+        Vector4 k_DefaultLightAttenuation = new Vector4(0.0f, 1.0f, 0.0f, 1.0f);
         Vector4 k_DefaultLightSpotDirection = new Vector4(0.0f, 0.0f, 1.0f, 0.0f);
+        Vector4 k_DefaultLightsProbeChannel = new Vector4(-1.0f, 1.0f, -1.0f, -1.0f);
 
         Vector4[] m_AdditionalLightPositions;
         Vector4[] m_AdditionalLightColors;
         Vector4[] m_AdditionalLightAttenuations;
         Vector4[] m_AdditionalLightSpotDirections;
+        Vector4[] m_AdditionalLightOcclusionProbeChannels;
 
         private int maxVisibleAdditionalLights { get; set; }
         private ComputeBuffer perObjectLightIndices { get; set; }
@@ -51,17 +60,20 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline
         {
             LightConstantBuffer._MainLightPosition = Shader.PropertyToID("_MainLightPosition");
             LightConstantBuffer._MainLightColor = Shader.PropertyToID("_MainLightColor");
+            LightConstantBuffer._MainLightOcclusionProbe = Shader.PropertyToID("_MainLightOcclusionProbe");
             LightConstantBuffer._AdditionalLightsCount = Shader.PropertyToID("_AdditionalLightsCount");
             LightConstantBuffer._AdditionalLightsPosition = Shader.PropertyToID("_AdditionalLightsPosition");
             LightConstantBuffer._AdditionalLightsColor = Shader.PropertyToID("_AdditionalLightsColor");
             LightConstantBuffer._AdditionalLightsAttenuation = Shader.PropertyToID("_AdditionalLightsAttenuation");
             LightConstantBuffer._AdditionalLightsSpotDir = Shader.PropertyToID("_AdditionalLightsSpotDir");
             LightConstantBuffer._AdditionalLightsBuffer = Shader.PropertyToID("_AdditionalLightsBuffer");
+            LightConstantBuffer._AdditionalLightOcclusionProbeChannel = Shader.PropertyToID("_AdditionalLightsOcclusionProbes");
 
             m_AdditionalLightPositions = new Vector4[0];
             m_AdditionalLightColors = new Vector4[0];
             m_AdditionalLightAttenuations = new Vector4[0];
             m_AdditionalLightSpotDirections = new Vector4[0];
+            m_AdditionalLightOcclusionProbeChannels = new Vector4[0];
         }
 
         /// <summary>
@@ -80,15 +92,17 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline
                 m_AdditionalLightColors = new Vector4[maxVisibleAdditionalLights];
                 m_AdditionalLightAttenuations = new Vector4[maxVisibleAdditionalLights];
                 m_AdditionalLightSpotDirections = new Vector4[maxVisibleAdditionalLights];
+                m_AdditionalLightOcclusionProbeChannels = new Vector4[maxVisibleAdditionalLights];
             }
         }
 
-        void InitializeLightConstants(List<VisibleLight> lights, int lightIndex, out Vector4 lightPos, out Vector4 lightColor, out Vector4 lightAttenuation, out Vector4 lightSpotDir)
+        void InitializeLightConstants(List<VisibleLight> lights, int lightIndex, out Vector4 lightPos, out Vector4 lightColor, out Vector4 lightAttenuation, out Vector4 lightSpotDir, out Vector4 lightOcclusionProbeChannel)
         {
             lightPos = k_DefaultLightPosition;
             lightColor = k_DefaultLightColor;
             lightAttenuation = k_DefaultLightAttenuation;
             lightSpotDir = k_DefaultLightSpotDirection;
+            lightOcclusionProbeChannel = k_DefaultLightsProbeChannel;
 
             // When no lights are visible, main light will be set to -1.
             // In this case we initialize it to default values and return
@@ -99,12 +113,12 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline
             if (lightData.lightType == LightType.Directional)
             {
                 Vector4 dir = -lightData.localToWorld.GetColumn(2);
-                lightPos = new Vector4(dir.x, dir.y, dir.z, k_DefaultLightAttenuation.w);
+                lightPos = new Vector4(dir.x, dir.y, dir.z, 0);
             }
             else
             {
                 Vector4 pos = lightData.localToWorld.GetColumn(3);
-                lightPos = new Vector4(pos.x, pos.y, pos.z, k_DefaultLightAttenuation.w);
+                lightPos = new Vector4(pos.x, pos.y, pos.z, 1);
             }
 
             // VisibleLight.finalColor already returns color in active color space
@@ -168,6 +182,18 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline
 
             Light light = lightData.light;
 
+            // Set the occlusion probe channel.
+            int occlusionProbeChannel = light != null ? light.bakingOutput.occlusionMaskChannel : -1;
+
+            // If we have baked the light, the occlusion channel is the index we need to sample in 'unity_ProbesOcclusion'
+            // If we have not baked the light, the occlusion channel is -1.
+            // In case there is no occlusion channel is -1, we set it to zero, and then set the second value in the
+            // input to one. We then, in the shader max with the second value for non-occluded lights.
+            lightOcclusionProbeChannel.x = occlusionProbeChannel == -1 ? 0f : occlusionProbeChannel;
+            lightOcclusionProbeChannel.y = occlusionProbeChannel == -1 ? 1f : 0f;
+
+            //add shadowmask support
+            /*
             // TODO: Add support to shadow mask
             if (light != null && light.bakingOutput.mixedLightingMode == MixedLightingMode.Subtractive && light.bakingOutput.lightmapBakeType == LightmapBakeType.Mixed)
             {
@@ -182,6 +208,24 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline
                         lightPos.w = 0.0f;
                 }
             }
+            */
+            //replaced with:
+            if (light != null && light.shadows != LightShadows.None && light.bakingOutput.lightmapBakeType == LightmapBakeType.Mixed) {
+                switch (light.bakingOutput.mixedLightingMode) {
+                    case MixedLightingMode.IndirectOnly: {
+                            //nothing
+                        }
+                        break;
+                    case MixedLightingMode.Subtractive: {
+                            m_MixedLightingSetup = MixedLightingSetup.Subtractive;
+                        }
+                        break;
+                    case MixedLightingMode.Shadowmask: {
+                            m_MixedLightingSetup = MixedLightingSetup.ShadowMask;
+                        }
+                        break;
+                }
+            }
         }
 
         void SetupShaderLightConstants(CommandBuffer cmd, ref LightData lightData)
@@ -191,7 +235,8 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline
                 InitializeLightConstants(lightData.visibleLights, -1, out m_AdditionalLightPositions[i],
                     out m_AdditionalLightColors[i],
                     out m_AdditionalLightAttenuations[i],
-                    out m_AdditionalLightSpotDirections[i]);
+                    out m_AdditionalLightSpotDirections[i],
+                    out m_AdditionalLightOcclusionProbeChannels[i]);
 
             m_MixedLightingSetup = MixedLightingSetup.None;
 
@@ -203,11 +248,16 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline
 
         void SetupMainLightConstants(CommandBuffer cmd, ref LightData lightData)
         {
-            Vector4 lightPos, lightColor, lightAttenuation, lightSpotDir;
-            InitializeLightConstants(lightData.visibleLights, lightData.mainLightIndex, out lightPos, out lightColor, out lightAttenuation, out lightSpotDir);
+            Vector4 lightPos, lightColor, lightAttenuation, lightSpotDir, lightOcclusionChannel;
+            InitializeLightConstants(lightData.visibleLights, lightData.mainLightIndex, out lightPos, out lightColor, out lightAttenuation, out lightSpotDir, out lightOcclusionChannel);
 
             cmd.SetGlobalVector(LightConstantBuffer._MainLightPosition, lightPos);
             cmd.SetGlobalVector(LightConstantBuffer._MainLightColor, lightColor);
+
+            if (m_MixedLightingSetup == MixedLightingSetup.ShadowMask) {
+                lightOcclusionChannel.w = QualitySettings.shadowmaskMode == ShadowmaskMode.DistanceShadowmask ? 1 : 0;
+                cmd.SetGlobalVector(LightConstantBuffer._MainLightOcclusionProbe, lightOcclusionChannel);
+            }
         }
 
         void SetupAdditionalLightConstants(CommandBuffer cmd, ref LightData lightData)
@@ -219,12 +269,13 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline
                 for (int i = 0; i < lights.Count && additionalLightsCount < maxVisibleAdditionalLights; ++i)
                 {
                     VisibleLight light = lights[i];
-                    if (light.lightType != LightType.Directional)
+                    if (lightData.mainLightIndex != i)
                     {
                         InitializeLightConstants(lights, i, out m_AdditionalLightPositions[additionalLightsCount],
                             out m_AdditionalLightColors[additionalLightsCount],
                             out m_AdditionalLightAttenuations[additionalLightsCount],
-                            out m_AdditionalLightSpotDirections[additionalLightsCount]);
+                            out m_AdditionalLightSpotDirections[additionalLightsCount],
+                            out m_AdditionalLightOcclusionProbeChannels[additionalLightsCount]);
                         additionalLightsCount++;
                     }
                 }
@@ -246,6 +297,7 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline
             cmd.SetGlobalVectorArray(LightConstantBuffer._AdditionalLightsColor, m_AdditionalLightColors);
             cmd.SetGlobalVectorArray(LightConstantBuffer._AdditionalLightsAttenuation, m_AdditionalLightAttenuations);
             cmd.SetGlobalVectorArray(LightConstantBuffer._AdditionalLightsSpotDir, m_AdditionalLightSpotDirections);
+            cmd.SetGlobalVectorArray(LightConstantBuffer._AdditionalLightOcclusionProbeChannel, m_AdditionalLightOcclusionProbeChannels);
         }
        
         /// <inheritdoc/>
@@ -262,6 +314,7 @@ namespace UnityEngine.Experimental.Rendering.LightweightPipeline
             CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.AdditionalLightsVertex, additionalLightsCount > 0 && additionalLightsPerVertex);
             CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.AdditionalLightsPixel, additionalLightsCount > 0 && !additionalLightsPerVertex);
             CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.MixedLightingSubtractive, renderingData.lightData.supportsMixedLighting && m_MixedLightingSetup == MixedLightingSetup.Subtractive);
+            CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.MixedLightingShadowMask, renderingData.lightData.supportsMixedLighting && m_MixedLightingSetup == MixedLightingSetup.ShadowMask);
             context.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
         }
